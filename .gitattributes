@@ -1,3 +1,7 @@
+# 文本文件统一用 LF：checkout 与 git archive 的结果一致，
+# 本地打的包与 CI 打的包字节相同。
+* text=auto eol=lf
+
 # 不进安装包的内容：仓库元数据与打包工具本身。
 /.gitignore     export-ignore
 /.gitattributes export-ignore
