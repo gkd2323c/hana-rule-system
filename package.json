@@ -1,0 +1,10 @@
+{
+  "name": "hana-rule-system",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "把行为规则注入系统提示的 v2 App（源码项目）",
+  "scripts": {
+    "test": "node test/rules.test.mjs"
+  }
+}

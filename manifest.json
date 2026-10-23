@@ -1,0 +1,30 @@
+{
+  "manifestVersion": 2,
+  "id": "hana-rule-system",
+  "name": "行为规则",
+  "version": "0.2.0",
+  "entry": "index.js",
+  "capabilities": [
+    "app/hooks.agent-before-start"
+  ],
+  "icon": "assets/icon.svg",
+  "description": "把行为规则注入系统提示而非会话消息：模型按设定执行，不再把它当外部输入权衡要不要遵守。附规则管理界面与 CLI。包内不带规则，规则是使用者自己的数据。",
+  "minAppVersion": "1.1.35-beta",
+  "contributes": {
+    "cards": [
+      {
+        "id": "rules",
+        "title": "行为规则",
+        "description": "规则清单的管理界面：新建、编辑、启停、删除、撤销上一版。",
+        "route": "/rules.html",
+        "cardForm": "flush",
+        "titlebar": "translucent",
+        "realization": "page",
+        "siteNavEntry": true,
+        "face": {
+          "image": "assets/cover.svg"
+        }
+      }
+    ]
+  }
+}

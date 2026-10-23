@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>行为规则</title>
+  <script>
+    /* 宿主把当前主题经 iframe URL 下发：hana-css（当前主题完整 CSS）与
+       auto 模式的 hana-palette-{light,dark}-css。挂上它，页面才随宿主主题一起变。 */
+    (function () {
+      try {
+        var p = new URLSearchParams(location.search);
+        var href = p.get("hana-css");
+        var appearance = p.get("hana-theme-appearance");
+        if (appearance) {
+          var themed = p.get("hana-palette-" + appearance + "-css");
+          if (themed) href = themed;
+        }
+        if (!href) return;
+        var link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = href;
+        link.setAttribute("data-host-theme", "1");
+        document.head.insertBefore(link, document.head.firstChild);
+      } catch (e) {
+        /* 主题不可用不影响规则管理功能 */
+      }
+    })();
+  </script>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      margin: 0;
+      padding: 18px 20px 40px;
+      font: 14px/1.65 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+      color: var(--hana-text, #1c1c1e);
+      background: transparent;
+    }
+    h1 { font-size: 18px; margin: 0 0 4px; font-weight: 600; }
+    .sub { margin: 0 0 16px; opacity: .68; font-size: 13px; }
+    .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+    button {
+      font: inherit; font-size: 13px; padding: 5px 11px; border-radius: 7px; cursor: pointer;
+      border: 1px solid var(--hana-border, rgba(128,128,128,.32));
+      background: var(--hana-surface, rgba(128,128,128,.10));
+      color: inherit;
+    }
+    button:hover:not(:disabled) { background: var(--hana-surface-hover, rgba(128,128,128,.18)); }
+    button:disabled { opacity: .45; cursor: default; }
+    button.primary { background: var(--hana-accent, #3b6ef6); border-color: transparent; color: #fff; }
+    button.danger { color: #d33; }
+    input[type="search"] {
+      font: inherit; font-size: 13px; padding: 5px 9px; border-radius: 7px; min-width: 190px;
+      border: 1px solid var(--hana-border, rgba(128,128,128,.32));
+      background: var(--hana-surface, rgba(128,128,128,.06)); color: inherit;
+    }
+    ul { list-style: none; margin: 0; padding: 0; }
+    li.rule {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 10px; border-radius: 9px; margin-bottom: 5px;
+      border: 1px solid var(--hana-border, rgba(128,128,128,.20));
+      background: var(--hana-surface, rgba(128,128,128,.05));
+    }
+    li.rule.off { opacity: .55; }
+    .rule .name { flex: 1; font-weight: 500; }
+    .rule .acts { display: flex; gap: 5px; }
+    .rule .acts button { font-size: 12px; padding: 3px 8px; }
+    .empty { opacity: .6; padding: 18px 2px; }
+    .err { color: #d33; margin: 6px 0; min-height: 18px; font-size: 13px; }
+    .ok { color: #2a8f4a; }
+    dialog {
+      border: 1px solid var(--hana-border, rgba(128,128,128,.3)); border-radius: 12px;
+      background: var(--hana-surface-solid, Canvas); color: inherit;
+      padding: 18px 20px; width: min(680px, 92vw);
+    }
+    dialog::backdrop { background: rgba(0,0,0,.32); }
+    dialog h2 { margin: 0 0 10px; font-size: 15px; }
+    dialog label { display: block; font-size: 13px; margin: 10px 0 4px; }
+    dialog input[type="text"], dialog textarea {
+      width: 100%; box-sizing: border-box; font: inherit; font-size: 13px;
+      padding: 7px 9px; border-radius: 7px;
+      border: 1px solid var(--hana-border, rgba(128,128,128,.32));
+      background: var(--hana-surface, rgba(128,128,128,.06)); color: inherit;
+    }
+    dialog textarea { min-height: 220px; resize: vertical; line-height: 1.6; }
+    .dlg-acts { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+    .hint { font-size: 12px; opacity: .6; margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <h1>行为规则</h1>
+  <p class="sub">改动从下一个会话生效：会话内清单是冻结的，中途不换。</p>
+
+  <div class="bar">
+    <input type="search" id="q" placeholder="按名称筛选" />
+    <button class="primary" id="btn-new" type="button">新建规则</button>
+    <button id="btn-undo" type="button">撤销上一版</button>
+    <button id="btn-refresh" type="button">刷新</button>
+    <span id="count" class="sub" style="margin:0"></span>
+  </div>
+
+  <div class="err" id="msg"></div>
+  <ul id="list"></ul>
+
+  <dialog id="editor">
+    <h2 id="ed-title">编辑规则</h2>
+    <label for="ed-name">规则名</label>
+    <input type="text" id="ed-name" maxlength="48" />
+    <div class="hint" id="ed-hint">规则名即标题，不含 \ / : * ? " &lt; &gt; |</div>
+    <label for="ed-body">正文（每行一条）</label>
+    <textarea id="ed-body" spellcheck="false"></textarea>
+    <label style="display:flex;align-items:center;gap:7px;margin-top:12px">
+      <input type="checkbox" id="ed-enabled" /> 启用这条规则
+    </label>
+    <div class="dlg-acts">
+      <button id="ed-cancel" type="button">取消</button>
+      <button class="primary" id="ed-save" type="button">保存</button>
+    </div>
+  </dialog>
+
+  <script type="module">
+    import { hana } from "./assets/sdk.js";
+
+    const $ = (id) => document.getElementById(id);
+    let rules = [];
+    let filter = "";
+
+    async function api(path, init) {
+      const res = await hana.api.fetch(path, init);
+      const text = await res.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch { data = { ok: false, error: text }; }
+      if (!res.ok) throw new Error(data?.error || `请求失败（${res.status}）`);
+      return data;
+    }
+
+    const post = (path, body) =>
+      api(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}) });
+
+    function say(text, kind) {
+      const el = $("msg");
+      el.textContent = text || "";
+      el.className = kind === "ok" ? "err ok" : "err";
+    }
+
+    async function load() {
+      try {
+        const data = await api("api/rules");
+        rules = data.rules || [];
+        render(data);
+      } catch (e) {
+        say(String(e?.message ?? e));
+      }
+    }
+
+    function render(data) {
+      const shown = rules.filter((r) => !filter || r.name.toLowerCase().includes(filter.toLowerCase()));
+      $("count").textContent = `${data.enabled}/${data.total} 启用 · 指纹 ${data.fingerprint || "—"}`;
+      const ul = $("list");
+      ul.innerHTML = "";
+      if (!shown.length) {
+        const li = document.createElement("li");
+        li.className = "empty";
+        li.textContent = rules.length ? "没有匹配的规则" : "还没有规则";
+        ul.appendChild(li);
+        return;
+      }
+      for (const r of shown) {
+        const li = document.createElement("li");
+        li.className = "rule" + (r.enabled ? "" : " off");
+        const name = document.createElement("span");
+        name.className = "name";
+        name.textContent = r.name;
+        li.appendChild(name);
+        const acts = document.createElement("span");
+        acts.className = "acts";
+        acts.appendChild(button(r.enabled ? "停用" : "启用", () => toggle(r)));
+        acts.appendChild(button("编辑", () => edit(r)));
+        acts.appendChild(button("删除", () => remove(r), "danger"));
+        li.appendChild(acts);
+        ul.appendChild(li);
+      }
+    }
+
+    function button(label, onClick, cls) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = label;
+      if (cls) b.className = cls;
+      b.addEventListener("click", onClick);
+      return b;
+    }
+
+    async function toggle(r) {
+      try {
+        await post(`api/rules/${encodeURIComponent(r.name)}/toggle`, { enabled: !r.enabled });
+        say(`已${r.enabled ? "停用" : "启用"} ${r.name}（下个会话生效）`, "ok");
+        await load();
+      } catch (e) {
+        say(String(e?.message ?? e));
+      }
+    }
+
+    async function remove(r) {
+      if (!confirm(`删除规则「${r.name}」？`)) return;
+      try {
+        await api(`api/rules/${encodeURIComponent(r.name)}`, { method: "DELETE" });
+        say(`已删除 ${r.name}（可用「撤销上一版」退回）`, "ok");
+        await load();
+      } catch (e) {
+        say(String(e?.message ?? e));
+      }
+    }
+
+    async function undo() {
+      try {
+        const result = await post("api/history/undo", {});
+        say(`已撤销到 ${result.at}（恢复 ${result.restored} 条规则）`, "ok");
+        await load();
+      } catch (e) {
+        say(String(e?.message ?? e));
+      }
+    }
+
+    let editing = null;
+
+    function edit(r) {
+      editing = r || null;
+      $("ed-title").textContent = r ? `编辑规则 · ${r.name}` : "新建规则";
+      $("ed-name").value = r ? r.name : "";
+      $("ed-name").disabled = Boolean(r);
+      $("ed-body").value = r ? (r.body || []).join("\n") : "";
+      $("ed-enabled").checked = r ? r.enabled : true;
+      $("editor").showModal();
+      $("ed-body").focus();
+    }
+
+    async function save() {
+      const name = $("ed-name").value.trim();
+      const body = $("ed-body").value;
+      const enabled = $("ed-enabled").checked;
+      if (!name) return say("规则名不能为空");
+      if (!body.trim()) return say("规则正文不能为空");
+      try {
+        if (editing) {
+          await api(`api/rules/${encodeURIComponent(editing.name)}`, {
+            method: "PUT",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ content: body, enabled }),
+          });
+          say(`已保存 ${name}（下个会话生效）`, "ok");
+        } else {
+          await post("api/rules", { name, content: body, enabled });
+          say(`已新建 ${name}（下个会话生效）`, "ok");
+        }
+        $("editor").close();
+        await load();
+      } catch (e) {
+        say(String(e?.message ?? e));
+      }
+    }
+
+    $("btn-new").addEventListener("click", () => edit(null));
+    $("btn-undo").addEventListener("click", undo);
+    $("btn-refresh").addEventListener("click", load);
+    $("q").addEventListener("input", (e) => { filter = e.target.value; load(); });
+    $("ed-cancel").addEventListener("click", () => $("editor").close());
+    $("ed-save").addEventListener("click", save);
+
+    load();
+  </script>
+</body>
+</html>
