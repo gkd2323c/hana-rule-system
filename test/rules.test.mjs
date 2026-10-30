@@ -205,10 +205,37 @@ check("快照能还原改动前的规则集", () => {
 check("快照历史可列出且按时间倒序", () => {
   writeRule(work, "历规", "# 历规\n- x\n", true);
   saveSnapshot(work, snapshotRules(work));
+  writeRule(work, "历规", "# 历规\n- x2\n", true);
   saveSnapshot(work, snapshotRules(work));
   const list = listSnapshots(work);
   assert.ok(list.length >= 2, "历史条数不足");
   assert.ok(list[0].at >= list[list.length - 1].at, "未按时间倒序");
+});
+
+check("内容未变时不重复存快照", () => {
+  const before = listSnapshots(work).length;
+  saveSnapshot(work, snapshotRules(work));
+  saveSnapshot(work, snapshotRules(work));
+  assert.equal(listSnapshots(work).length, before, "同义快照占了撤销窗口");
+});
+
+check("一次连写之后仍能退回到连写之前", () => {
+  const work2 = fs.mkdtempSync(path.join(os.tmpdir(), "hana-rule-system-hist-"));
+  writeRule(work2, "甲规", "# 甲规\n- 连写前的原文\n", true);
+  const beforeBatch = snapshotRules(work2);
+  saveSnapshot(work2, beforeBatch);
+  // 模拟批量改规则：每改一次存一份，连续 30 次。
+  for (let i = 0; i < 30; i += 1) {
+    writeRule(work2, "甲规", `# 甲规\n- 第 ${i} 次改写\n`, true);
+    saveSnapshot(work2, snapshotRules(work2));
+  }
+  const list = listSnapshots(work2);
+  const oldest = list[list.length - 1];
+  assert.ok(
+    list.some((s) => s.id === beforeBatch.at.replace(/[:.]/g, "-")),
+    `连写前的撤销点被挤掉了，现存 ${list.length} 份、最早 ${oldest?.id}`,
+  );
+  assert.ok(list.length <= 100, "保留上限失效");
 });
 
 check("还原快照会清掉快照之外的新规则", () => {
